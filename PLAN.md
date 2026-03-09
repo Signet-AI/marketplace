@@ -183,3 +183,57 @@ index_runs (
 ---
 
 *Powered by [Entire.io](https://entire.io) for verifiable session provenance.*
+
+---
+
+## The Real Vision — Signet as Universal Distillation Engine
+
+*Added March 9, 2026 — Nicholai*
+
+Signet is not a memory company.
+
+The core value proposition: **take any dataset in the world, no matter how messy or unstructured, and transform it into actionable, agent-understandable knowledge.**
+
+This reframes everything:
+
+### What Signet Actually Is
+An importer and distillation engine. The pipeline already exists. What's missing is the surface — the button that lets anyone connect their data sources and watch them become structured knowledge.
+
+Import targets needed:
+- Gmail / Google Workspace (Docs, Sheets, Drive)
+- Excel / CSV / any tabular data
+- Notion, Obsidian, Roam
+- Slack, Discord export
+- PDFs, Markdown, plaintext
+- GitHub repos (already in PR #25)
+- Any data dump, any format
+
+The distillation pipeline handles the rest. Messy → atomic facts → entities → knowledge graph.
+
+### What a Knowledge Base Is
+A knowledge base is a **pre-compiled dataset of knowledge** — the output of running the distillation pipeline over a body of data. Packaged, portable, DID-signed. Ready to install into any Signet-powered agent.
+
+This means:
+- A law firm's 40 years of case strategy becomes a knowledge base
+- A VC's pattern library becomes a knowledge base
+- A founder's playbook becomes a knowledge base
+- A company's entire institutional memory — the decisions, the reasoning, the pattern matching that took decades to build — becomes a knowledge base
+
+### Selling Your Cognitive Substrate
+When companies exit, they sell customer lists, equity, and IP.
+
+The next category: **sell your cognitive substrate.** The pattern matching. The decision trees. The institutional memory that lives in the heads of people who will leave. The thing that makes your company *smart*, not just the assets it owns.
+
+Signet packages that. The marketplace auctions it. The buyer gets a knowledge base they can install — and their agent inherits decades of understanding in a single import.
+
+This is a new asset class.
+
+### What Needs to Be Built
+The pipeline exists. The distillation engine works. What's needed:
+
+1. **Import connectors** — OAuth flows for Gmail, Google Workspace, Notion, Slack; file upload for CSV/Excel/PDF; GitHub repo ingestion (PR #25)
+2. **Knowledge base packager** — bundle the distillation output into a portable, signed, versioned artifact
+3. **Marketplace listing format** — describe the knowledge base (domain, source types, entity count, date range) without exposing the data
+4. **Purchase + install flow** — buyer pays, gets the bundle, installs into their Signet
+
+The oracle is the product. The import layer is how you feed it.
