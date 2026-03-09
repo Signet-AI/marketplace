@@ -1,6 +1,10 @@
 /**
  * Catalog data fetching and safe DOM utilities.
  * All card building uses DOM APIs (textContent) — no innerHTML.
+ *
+ * Data sources (in priority order):
+ *   1. /data/listings.json — pre-built seed file from scripts/index.ts
+ *   2. Live APIs (MCP registry, skills.sh search) — fallback if seed missing
  */
 
 const MONOGRAM_COLORS = [
@@ -86,7 +90,7 @@ export function buildCard(tpl: HTMLTemplateElement, data: CardData): HTMLElement
 }
 
 // ---------------------------------------------------------------------------
-// Data fetching
+// Data types
 // ---------------------------------------------------------------------------
 
 export interface SkillItem {
@@ -96,6 +100,7 @@ export interface SkillItem {
   downloads?: number;
   stars?: number;
   fullName?: string;
+  href?: string;
 }
 
 export interface McpItem {
@@ -106,6 +111,7 @@ export interface McpItem {
   source?: string;
   official?: boolean;
   popularityRank?: number;
+  href?: string;
 }
 
 export interface FetchResult<T> {
@@ -113,33 +119,132 @@ export interface FetchResult<T> {
   total: number;
 }
 
-/** Fetch skills catalog from skills.sh public API */
-export async function fetchSkills(query = "", limit = 60): Promise<FetchResult<SkillItem>> {
-  const url = new URL("https://skills.sh/api/v1/search");
-  if (query) url.searchParams.set("q", query);
-  url.searchParams.set("limit", String(limit));
-
-  const res = await fetch(url.toString());
-  if (!res.ok) throw new Error(`skills.sh API error: ${res.status}`);
-  const data = await res.json() as { results?: SkillItem[]; total?: number };
-  return {
-    items: data.results ?? [],
-    total: data.total ?? (data.results?.length ?? 0),
-  };
+interface Listings {
+  generated?: string;
+  skills: SkillItem[];
+  mcp: McpItem[];
+  stats?: { skills: number; mcp: number };
 }
 
-/** Fetch MCP server catalog from mcpservers.org public API */
-export async function fetchMcpServers(query = "", limit = 60): Promise<FetchResult<McpItem>> {
-  const url = new URL("https://mcpservers.org/api/v1/servers");
-  if (query) url.searchParams.set("q", query);
-  url.searchParams.set("limit", String(limit));
+let _listingsCache: Listings | null = null;
 
-  const res = await fetch(url.toString());
-  if (!res.ok) throw new Error(`mcpservers.org API error: ${res.status}`);
-  const data = await res.json() as { servers?: McpItem[]; total?: number; items?: McpItem[] };
-  const items = data.servers ?? data.items ?? [];
-  return {
-    items,
-    total: data.total ?? items.length,
-  };
+async function loadListings(): Promise<Listings> {
+  if (_listingsCache) return _listingsCache;
+  try {
+    const res = await fetch("/data/listings.json");
+    if (res.ok) {
+      _listingsCache = (await res.json()) as Listings;
+      return _listingsCache;
+    }
+  } catch {
+    // fall through to empty
+  }
+  return { skills: [], mcp: [] };
+}
+
+// ---------------------------------------------------------------------------
+// Public fetch functions
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch skills catalog.
+ * Primary: /data/listings.json seed file.
+ * Fallback: skills.sh /api/search (search-based, requires 2+ char query).
+ *   Note: skills.sh has no list endpoint — fallback only works with a query.
+ */
+export async function fetchSkills(query = "", limit = 500): Promise<FetchResult<SkillItem>> {
+  const listings = await loadListings();
+
+  if (listings.skills.length > 0) {
+    const items = query
+      ? listings.skills.filter(
+          (s) =>
+            s.name.toLowerCase().includes(query.toLowerCase()) ||
+            (s.description ?? "").toLowerCase().includes(query.toLowerCase()),
+        )
+      : listings.skills;
+    return { items: items.slice(0, limit), total: listings.stats?.skills ?? listings.skills.length };
+  }
+
+  // Fallback: skills.sh search API (requires a query of 2+ chars)
+  if (query.length >= 2) {
+    try {
+      const url = `https://skills.sh/api/search?q=${encodeURIComponent(query)}&limit=${Math.min(limit, 100)}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = (await res.json()) as {
+          skills: Array<{ id: string; name: string; installs: number; source: string }>;
+          count: number;
+        };
+        const items: SkillItem[] = (data.skills ?? []).map((s) => ({
+          name: s.name,
+          provider: "skills.sh",
+          downloads: s.installs,
+          fullName: s.source,
+          href: `https://github.com/${s.source}`,
+        }));
+        return { items, total: data.count ?? items.length };
+      }
+    } catch {
+      // ignore, fall through
+    }
+  }
+
+  return { items: [], total: 0 };
+}
+
+/**
+ * Fetch MCP server catalog.
+ * Primary: /data/listings.json seed file.
+ * Fallback: MCP official registry (registry.modelcontextprotocol.io/v0.1/servers).
+ *
+ * Skipped sources (no public API):
+ *   - clawhub.ai — domain does not resolve
+ *   - mcpservers.org — Next.js SSR site, no public JSON endpoint
+ *   - api.clawhub.com — returns 404 on all probed paths
+ */
+export async function fetchMcpServers(query = "", limit = 500): Promise<FetchResult<McpItem>> {
+  const listings = await loadListings();
+
+  if (listings.mcp.length > 0) {
+    const items = query
+      ? listings.mcp.filter(
+          (s) =>
+            s.name.toLowerCase().includes(query.toLowerCase()) ||
+            (s.description ?? "").toLowerCase().includes(query.toLowerCase()),
+        )
+      : listings.mcp;
+    return { items: items.slice(0, limit), total: listings.stats?.mcp ?? listings.mcp.length };
+  }
+
+  // Fallback: MCP official registry (first page only)
+  try {
+    const res = await fetch("https://registry.modelcontextprotocol.io/v0.1/servers?limit=100");
+    if (res.ok) {
+      const data = (await res.json()) as {
+        servers: Array<{
+          server: {
+            name: string;
+            description?: string;
+            websiteUrl?: string;
+          };
+        }>;
+        metadata?: { count?: number };
+      };
+      const items: McpItem[] = (data.servers ?? []).map((entry, i) => ({
+        id: entry.server.name,
+        name: entry.server.name,
+        description: entry.server.description,
+        source: "mcp-registry",
+        official: true,
+        popularityRank: i + 1,
+        href: entry.server.websiteUrl ?? "https://registry.modelcontextprotocol.io",
+      }));
+      return { items, total: data.metadata?.count ?? items.length };
+    }
+  } catch {
+    // ignore
+  }
+
+  return { items: [], total: 0 };
 }
