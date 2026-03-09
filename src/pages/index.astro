@@ -1,0 +1,382 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import "../styles/global.css";
+---
+
+<Layout title="Signet Marketplace — Skills, MCP Servers & More">
+  <!-- Hidden card template for safe DOM cloning -->
+  <template id="card-tpl">
+    <article class="catalog-card" tabindex="0">
+      <div class="catalog-top">
+        <div class="catalog-icon" data-icon></div>
+        <div class="catalog-name" data-name></div>
+      </div>
+      <p class="catalog-desc" data-desc></p>
+      <div class="catalog-meta" data-meta></div>
+    </article>
+  </template>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-inner">
+      <p class="hero-eyebrow">SIGNET MARKETPLACE</p>
+      <h1 class="hero-title">The registry for AI agent tooling.</h1>
+      <p class="hero-sub">
+        Discover and install skills, MCP servers, and knowledge bases for the
+        Signet agent platform.
+      </p>
+
+      <div class="hero-search-wrap">
+        <input
+          id="hero-search"
+          type="text"
+          class="search-input hero-search"
+          placeholder="Search skills, servers, tools..."
+          autocomplete="off"
+        />
+        <kbd>/</kbd>
+      </div>
+
+      <div class="hero-links">
+        <a href="/skills" class="hero-link-card">
+          <span class="hlc-icon">SK</span>
+          <div>
+            <div class="hlc-label">Skills</div>
+            <div class="hlc-desc">CLI tools &amp; automation scripts</div>
+          </div>
+          <span class="hlc-arrow">→</span>
+        </a>
+        <a href="/mcp" class="hero-link-card">
+          <span class="hlc-icon hlc-icon-mcp">MCP</span>
+          <div>
+            <div class="hlc-label">MCP Servers</div>
+            <div class="hlc-desc">Model Context Protocol integrations</div>
+          </div>
+          <span class="hlc-arrow">→</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Stats bar -->
+  <div class="stats-bar">
+    <div class="stat-item">
+      <span id="stat-skills" class="stat-num">—</span>
+      <span class="stat-label">Skills</span>
+    </div>
+    <div class="stat-div"></div>
+    <div class="stat-item">
+      <span id="stat-mcp" class="stat-num">—</span>
+      <span class="stat-label">MCP Servers</span>
+    </div>
+    <div class="stat-div"></div>
+    <div class="stat-item">
+      <span class="stat-num">2</span>
+      <span class="stat-label">Providers</span>
+    </div>
+    <div class="stat-div"></div>
+    <div class="stat-item">
+      <span class="stat-num">Open</span>
+      <span class="stat-label">Registry</span>
+    </div>
+  </div>
+
+  <!-- Featured skills -->
+  <section class="section">
+    <div class="section-header">
+      <h2 class="section-title">Featured Skills</h2>
+      <a href="/skills" class="section-more">View all →</a>
+    </div>
+    <div id="featured-skills" class="catalog-grid">
+      <div class="state-loading">Loading skills...</div>
+    </div>
+  </section>
+
+  <!-- Featured MCP servers -->
+  <section class="section">
+    <div class="section-header">
+      <h2 class="section-title">Featured MCP Servers</h2>
+      <a href="/mcp" class="section-more">View all →</a>
+    </div>
+    <div id="featured-mcp" class="catalog-grid">
+      <div class="state-loading">Loading servers...</div>
+    </div>
+  </section>
+</Layout>
+
+<script>
+  import { fetchSkills, fetchMcpServers, buildCard, formatCount } from "@/lib/catalog";
+
+  const heroSearch = document.getElementById("hero-search") as HTMLInputElement | null;
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "/" && document.activeElement?.tagName !== "INPUT") {
+      e.preventDefault();
+      heroSearch?.focus();
+    }
+  });
+
+  heroSearch?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      const q = heroSearch.value.trim();
+      if (q) window.location.href = `/skills?q=${encodeURIComponent(q)}`;
+    }
+  });
+
+  const tpl = document.getElementById("card-tpl") as HTMLTemplateElement | null;
+  const skillsEl = document.getElementById("featured-skills")!;
+  const mcpEl = document.getElementById("featured-mcp")!;
+  const statSkills = document.getElementById("stat-skills")!;
+  const statMcp = document.getElementById("stat-mcp")!;
+
+  fetchSkills().then(({ items, total }) => {
+    statSkills.textContent = formatCount(total);
+    const featured = items.slice(0, 6);
+    skillsEl.replaceChildren();
+    if (featured.length === 0) {
+      const p = document.createElement("p");
+      p.className = "state-empty";
+      p.textContent = "No skills found.";
+      skillsEl.appendChild(p);
+      return;
+    }
+    featured.forEach((s) => {
+      if (!tpl) return;
+      const card = buildCard(tpl, {
+        name: s.name,
+        description: s.description ?? "",
+        badges: [s.provider ?? "skills.sh"],
+        stat: s.downloads != null ? `${formatCount(s.downloads)} installs` : undefined,
+      });
+      skillsEl.appendChild(card);
+    });
+  }).catch(() => {
+    skillsEl.replaceChildren();
+    const p = document.createElement("p");
+    p.className = "state-empty";
+    p.textContent = "Could not load skills.";
+    skillsEl.appendChild(p);
+  });
+
+  fetchMcpServers().then(({ items, total }) => {
+    statMcp.textContent = formatCount(total);
+    const featured = items.slice(0, 6);
+    mcpEl.replaceChildren();
+    if (featured.length === 0) {
+      const p = document.createElement("p");
+      p.className = "state-empty";
+      p.textContent = "No servers found.";
+      mcpEl.appendChild(p);
+      return;
+    }
+    featured.forEach((s) => {
+      if (!tpl) return;
+      const card = buildCard(tpl, {
+        name: s.name,
+        description: s.description ?? "",
+        badges: [s.source ?? "mcp", s.category ?? "general", ...(s.official ? ["official"] : [])],
+        official: s.official,
+      });
+      mcpEl.appendChild(card);
+    });
+  }).catch(() => {
+    mcpEl.replaceChildren();
+    const p = document.createElement("p");
+    p.className = "state-empty";
+    p.textContent = "Could not load servers.";
+    mcpEl.appendChild(p);
+  });
+</script>
+
+<style>
+  .hero {
+    padding: 64px 0 40px;
+    border-bottom: 1px solid var(--sig-border);
+    margin-bottom: var(--space-lg);
+  }
+
+  .hero-inner {
+    max-width: 640px;
+  }
+
+  .hero-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--sig-accent);
+    margin: 0 0 var(--space-sm);
+  }
+
+  .hero-title {
+    font-family: var(--font-display);
+    font-size: clamp(28px, 4vw, 42px);
+    font-weight: 600;
+    color: var(--sig-text-bright);
+    letter-spacing: -0.01em;
+    margin: 0 0 var(--space-sm);
+    line-height: 1.15;
+  }
+
+  .hero-sub {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--sig-text-muted);
+    line-height: 1.6;
+    margin: 0 0 var(--space-lg);
+  }
+
+  .hero-search-wrap {
+    position: relative;
+    max-width: 480px;
+    margin-bottom: var(--space-lg);
+  }
+
+  .hero-search {
+    font-size: 13px;
+    padding: 10px 40px 10px 14px;
+  }
+
+  .hero-search-wrap kbd {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+
+  .hero-links {
+    display: flex;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+  }
+
+  .hero-link-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border: 1px solid var(--sig-border-strong);
+    background: var(--sig-surface-raised);
+    text-decoration: none;
+    transition: border-color 0.15s;
+    min-width: 200px;
+  }
+
+  .hero-link-card:hover {
+    border-color: var(--sig-accent);
+  }
+
+  .hlc-icon {
+    width: 34px;
+    height: 28px;
+    background: var(--sig-icon-bg-2);
+    border: 1px solid var(--sig-icon-border);
+    border-radius: 5px;
+    display: grid;
+    place-items: center;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--sig-icon-fg);
+    flex-shrink: 0;
+    letter-spacing: 0.04em;
+  }
+
+  .hlc-icon-mcp {
+    background: var(--sig-icon-bg-1);
+  }
+
+  .hlc-label {
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--sig-text-bright);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .hlc-desc {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--sig-text-muted);
+    margin-top: 1px;
+  }
+
+  .hlc-arrow {
+    margin-left: auto;
+    font-size: 14px;
+    color: var(--sig-text-muted);
+  }
+
+  .stats-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-sm) 0 var(--space-lg);
+    flex-wrap: wrap;
+  }
+
+  .stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .stat-num {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--sig-text-bright);
+    letter-spacing: -0.01em;
+  }
+
+  .stat-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--sig-text-muted);
+  }
+
+  .stat-div {
+    width: 1px;
+    height: 28px;
+    background: var(--sig-border-strong);
+  }
+
+  .section {
+    margin-bottom: var(--space-lg);
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-sm);
+    padding-bottom: var(--space-sm);
+    border-bottom: 1px solid var(--sig-border);
+  }
+
+  .section-title {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--sig-text-bright);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 0;
+  }
+
+  .section-more {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--sig-accent);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+
+  .section-more:hover {
+    color: var(--sig-accent-hover);
+  }
+</style>

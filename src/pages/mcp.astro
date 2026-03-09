@@ -1,0 +1,292 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import "../styles/global.css";
+---
+
+<Layout
+  title="MCP Servers — Signet Marketplace"
+  description="Browse Model Context Protocol servers from the MCP registry and GitHub."
+>
+  <!-- Hidden card template for safe DOM cloning -->
+  <template id="card-tpl">
+    <article class="catalog-card" tabindex="0">
+      <div class="catalog-top">
+        <div class="catalog-icon" data-icon></div>
+        <div class="catalog-name" data-name></div>
+      </div>
+      <p class="catalog-desc" data-desc></p>
+      <div class="catalog-meta" data-meta></div>
+    </article>
+  </template>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <div class="search-wrap">
+        <input
+          id="mcp-search"
+          type="text"
+          class="search-input"
+          placeholder="Search MCP servers..."
+          autocomplete="off"
+        />
+        <kbd>/</kbd>
+      </div>
+    </div>
+
+    <div class="toolbar-right">
+      <label class="filter-label" for="sort-select">
+        Sort
+        <select id="sort-select" class="filter-select">
+          <option value="popularity">Popularity</option>
+          <option value="official">Official first</option>
+          <option value="name">Name</option>
+        </select>
+      </label>
+
+      <label class="filter-label" for="source-select">
+        Source
+        <select id="source-select" class="filter-select">
+          <option value="all">All sources</option>
+          <option value="mcpservers.org">MCP Registry</option>
+          <option value="modelcontextprotocol/servers">MCP GitHub</option>
+        </select>
+      </label>
+
+      <label class="filter-label" for="category-select">
+        Category
+        <select id="category-select" class="filter-select">
+          <option value="all">All</option>
+          <option value="files">Files</option>
+          <option value="data">Data</option>
+          <option value="web">Web</option>
+          <option value="search">Search</option>
+          <option value="devtools">Dev Tools</option>
+          <option value="general">General</option>
+        </select>
+      </label>
+    </div>
+  </div>
+
+  <!-- Results count -->
+  <div id="results-bar" class="results-bar"></div>
+
+  <!-- Grid -->
+  <div id="mcp-grid" class="catalog-grid">
+    <div class="state-loading">Loading MCP servers...</div>
+  </div>
+
+  <!-- Load more -->
+  <div id="load-more-wrap" class="load-more-wrap" style="display:none">
+    <button id="load-more-btn" class="load-more-btn" type="button">Load more</button>
+  </div>
+</Layout>
+
+<script>
+  import { fetchMcpServers, buildCard } from "@/lib/catalog";
+  import type { McpItem } from "@/lib/catalog";
+
+  const tpl = document.getElementById("card-tpl") as HTMLTemplateElement | null;
+  const grid = document.getElementById("mcp-grid")!;
+  const searchEl = document.getElementById("mcp-search") as HTMLInputElement;
+  const sortEl = document.getElementById("sort-select") as HTMLSelectElement;
+  const sourceEl = document.getElementById("source-select") as HTMLSelectElement;
+  const categoryEl = document.getElementById("category-select") as HTMLSelectElement;
+  const resultsBar = document.getElementById("results-bar")!;
+  const loadMoreWrap = document.getElementById("load-more-wrap") as HTMLElement;
+  const loadMoreBtn = document.getElementById("load-more-btn") as HTMLButtonElement;
+
+  let allItems: McpItem[] = [];
+  let filtered: McpItem[] = [];
+  let displayed = 0;
+  const PAGE_SIZE = 60;
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const initialQuery = urlParams.get("q") ?? "";
+  if (initialQuery) searchEl.value = initialQuery;
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "/" && document.activeElement?.tagName !== "INPUT") {
+      e.preventDefault();
+      searchEl.focus();
+    }
+    if (e.key === "Escape" && document.activeElement === searchEl) {
+      searchEl.blur();
+    }
+  });
+
+  function formatSourceLabel(source: string): string {
+    if (source === "modelcontextprotocol/servers") return "MCP GitHub";
+    if (source === "mcpservers.org") return "MCP Registry";
+    return source;
+  }
+
+  function setLoading() {
+    grid.replaceChildren();
+    const p = document.createElement("p");
+    p.className = "state-loading";
+    p.textContent = "Loading MCP servers...";
+    grid.appendChild(p);
+    resultsBar.textContent = "";
+    loadMoreWrap.style.display = "none";
+  }
+
+  function setError(msg: string) {
+    grid.replaceChildren();
+    const p = document.createElement("p");
+    p.className = "state-empty";
+    p.textContent = msg;
+    grid.appendChild(p);
+  }
+
+  function renderPage(reset: boolean) {
+    if (reset) {
+      grid.replaceChildren();
+      displayed = 0;
+    }
+
+    const page = filtered.slice(displayed, displayed + PAGE_SIZE);
+    if (page.length === 0 && displayed === 0) {
+      const p = document.createElement("p");
+      p.className = "state-empty";
+      p.textContent = "No servers match your filters.";
+      grid.appendChild(p);
+      loadMoreWrap.style.display = "none";
+      return;
+    }
+
+    page.forEach((s) => {
+      if (!tpl) return;
+      const badges: string[] = [
+        formatSourceLabel(s.source ?? "mcp"),
+        s.category ?? "general",
+      ];
+      if (s.official) badges.push("official");
+      if (s.popularityRank) badges.push(`#${s.popularityRank}`);
+
+      const card = buildCard(tpl, {
+        name: s.name,
+        description: s.description ?? "",
+        badges,
+        official: s.official,
+      });
+      grid.appendChild(card);
+    });
+
+    displayed += page.length;
+    resultsBar.textContent = `${filtered.length.toLocaleString()} servers${filtered.length < allItems.length ? ` (filtered from ${allItems.length.toLocaleString()})` : ""}`;
+    loadMoreWrap.style.display = displayed < filtered.length ? "flex" : "none";
+  }
+
+  function applyFilters() {
+    const q = searchEl.value.trim().toLowerCase();
+    const source = sourceEl.value;
+    const category = categoryEl.value;
+    const sort = sortEl.value;
+
+    filtered = allItems.filter((s) => {
+      if (q && !s.name.toLowerCase().includes(q) && !(s.description ?? "").toLowerCase().includes(q)) return false;
+      if (source !== "all" && s.source !== source) return false;
+      if (category !== "all" && s.category !== category) return false;
+      return true;
+    });
+
+    if (sort === "official") {
+      filtered.sort((a, b) => (b.official ? 1 : 0) - (a.official ? 1 : 0));
+    } else if (sort === "name") {
+      filtered.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    // popularity: keep API order
+
+    renderPage(true);
+  }
+
+  loadMoreBtn.addEventListener("click", () => renderPage(false));
+  searchEl.addEventListener("input", applyFilters);
+  sortEl.addEventListener("change", applyFilters);
+  sourceEl.addEventListener("change", applyFilters);
+  categoryEl.addEventListener("change", applyFilters);
+
+  setLoading();
+  fetchMcpServers(initialQuery, 500).then(({ items }) => {
+    allItems = items;
+    applyFilters();
+  }).catch(() => setError("Could not load MCP server catalog."));
+</script>
+
+<style>
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+    padding: var(--space-sm) 0;
+    border-bottom: 1px solid var(--sig-border);
+    margin-bottom: var(--space-sm);
+  }
+
+  .toolbar-left {
+    flex: 1;
+    min-width: 200px;
+  }
+
+  .search-wrap {
+    position: relative;
+    max-width: 400px;
+  }
+
+  .search-wrap kbd {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+
+  .toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+  }
+
+  .filter-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--sig-text-muted);
+  }
+
+  .results-bar {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--sig-text-muted);
+    padding: var(--space-xs) 0 var(--space-sm);
+    min-height: 20px;
+  }
+
+  .load-more-wrap {
+    padding: var(--space-lg) 0;
+    justify-content: center;
+  }
+
+  .load-more-btn {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--sig-text-bright);
+    background: transparent;
+    border: 1px solid var(--sig-border-strong);
+    padding: 6px 24px;
+    transition: border-color 0.15s;
+  }
+
+  .load-more-btn:hover {
+    border-color: var(--sig-accent);
+  }
+</style>

@@ -1,0 +1,242 @@
+---
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = "Signet Marketplace",
+  description = "Discover and install AI agent skills, MCP servers, and knowledge bases for Signet.",
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={description} />
+    <title>{title}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Geist+Mono:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="header-inner">
+        <a href="/" class="header-logo">
+          <span class="logo-mark">S</span>
+          <span class="logo-text">SIGNET</span>
+          <span class="logo-sub">marketplace</span>
+        </a>
+
+        <nav class="header-nav">
+          <a href="/" class="nav-link" data-page="home">Browse</a>
+          <a href="/skills" class="nav-link" data-page="skills">Skills</a>
+          <a href="/mcp" class="nav-link" data-page="mcp">MCP Servers</a>
+        </nav>
+
+        <div class="header-actions">
+          <a
+            href="https://signetai.io"
+            target="_blank"
+            rel="noopener"
+            class="header-cta"
+          >
+            Get Signet
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <span class="footer-copy">
+          &copy; {new Date().getFullYear()} Signet AI
+        </span>
+        <div class="footer-links">
+          <a href="https://signetai.io" target="_blank" rel="noopener">Website</a>
+          <a href="https://github.com/Signet-AI" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://skills.sh" target="_blank" rel="noopener">skills.sh</a>
+          <a href="https://mcpservers.org" target="_blank" rel="noopener">MCP Registry</a>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      // Highlight active nav link
+      const page = document.location.pathname;
+      document.querySelectorAll(".nav-link").forEach((link) => {
+        const el = link as HTMLAnchorElement;
+        const href = el.getAttribute("href") ?? "/";
+        if (
+          href === page ||
+          (href !== "/" && page.startsWith(href))
+        ) {
+          el.classList.add("active");
+        }
+      });
+    </script>
+  </body>
+</html>
+
+<style>
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: color-mix(in srgb, var(--sig-bg) 90%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--sig-border);
+  }
+
+  .header-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 var(--space-md);
+    height: 48px;
+    display: flex;
+    align-items: center;
+    gap: var(--space-lg);
+  }
+
+  .header-logo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+    flex-shrink: 0;
+  }
+
+  .logo-mark {
+    width: 22px;
+    height: 22px;
+    background: var(--sig-accent);
+    color: var(--sig-bg);
+    display: grid;
+    place-items: center;
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+
+  .logo-text {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--sig-text-bright);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .logo-sub {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--sig-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 1px;
+  }
+
+  .header-nav {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .nav-link {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--sig-text-muted);
+    text-decoration: none;
+    padding: 4px 10px;
+    transition: color 0.15s;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 2px solid transparent;
+  }
+
+  .nav-link:hover {
+    color: var(--sig-text-bright);
+  }
+
+  :global(.nav-link.active) {
+    color: var(--sig-text-bright);
+    border-bottom-color: var(--sig-text-bright);
+  }
+
+  .header-actions {
+    margin-left: auto;
+  }
+
+  .header-cta {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--sig-text-bright);
+    border: 1px solid var(--sig-border-strong);
+    padding: 4px 12px;
+    text-decoration: none;
+    transition: border-color 0.15s, color 0.15s;
+  }
+
+  .header-cta:hover {
+    border-color: var(--sig-accent-hover);
+    color: var(--sig-accent-hover);
+  }
+
+  main {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: var(--space-md);
+    min-height: calc(100vh - 120px);
+  }
+
+  .site-footer {
+    border-top: 1px solid var(--sig-border);
+    padding: var(--space-md);
+  }
+
+  .footer-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+  }
+
+  .footer-copy {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--sig-text-muted);
+  }
+
+  .footer-links {
+    display: flex;
+    gap: var(--space-md);
+  }
+
+  .footer-links a {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--sig-text-muted);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+
+  .footer-links a:hover {
+    color: var(--sig-accent);
+  }
+</style>

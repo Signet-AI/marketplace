@@ -1,0 +1,311 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import "../styles/global.css";
+---
+
+<Layout
+  title="Skills — Signet Marketplace"
+  description="Browse and install agent skills from skills.sh and ClawHub."
+>
+  <!-- Hidden card template for safe DOM cloning -->
+  <template id="card-tpl">
+    <article class="catalog-card" tabindex="0">
+      <div class="catalog-top">
+        <div class="catalog-icon" data-icon></div>
+        <div class="catalog-name" data-name></div>
+      </div>
+      <p class="catalog-desc" data-desc></p>
+      <div class="catalog-meta" data-meta></div>
+    </article>
+  </template>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <div class="search-wrap">
+        <input
+          id="skills-search"
+          type="text"
+          class="search-input"
+          placeholder="Search skills..."
+          autocomplete="off"
+        />
+        <kbd>/</kbd>
+      </div>
+    </div>
+
+    <div class="toolbar-right">
+      <label class="filter-label" for="sort-select">
+        Sort
+        <select id="sort-select" class="filter-select">
+          <option value="popularity">Popularity</option>
+          <option value="installs">Downloads</option>
+          <option value="stars">Stars</option>
+          <option value="name">Name</option>
+        </select>
+      </label>
+
+      <label class="filter-label" for="provider-select">
+        Provider
+        <select id="provider-select" class="filter-select">
+          <option value="all">All</option>
+          <option value="skills.sh">skills.sh</option>
+          <option value="clawhub">ClawHub</option>
+        </select>
+      </label>
+    </div>
+  </div>
+
+  <!-- Provider links -->
+  <div class="provider-bar">
+    <a href="https://skills.sh" target="_blank" rel="noopener" class="provider-link">skills.sh</a>
+    <span class="provider-div">|</span>
+    <a href="https://clawhub.ai" target="_blank" rel="noopener" class="provider-link">clawhub.ai</a>
+    <span class="provider-div">|</span>
+    <a
+      href="https://socket.dev/blog/socket-brings-supply-chain-security-to-skills"
+      target="_blank"
+      rel="noopener"
+      class="provider-link provider-verified"
+    >
+      ★ Verified by Socket.dev
+    </a>
+  </div>
+
+  <!-- Results count -->
+  <div id="results-bar" class="results-bar"></div>
+
+  <!-- Grid -->
+  <div id="skills-grid" class="catalog-grid">
+    <div class="state-loading">Loading skills...</div>
+  </div>
+
+  <!-- Load more -->
+  <div id="load-more-wrap" class="load-more-wrap" style="display:none">
+    <button id="load-more-btn" class="load-more-btn" type="button">Load more</button>
+  </div>
+</Layout>
+
+<script>
+  import { fetchSkills, buildCard, formatCount } from "@/lib/catalog";
+  import type { SkillItem } from "@/lib/catalog";
+
+  const tpl = document.getElementById("card-tpl") as HTMLTemplateElement | null;
+  const grid = document.getElementById("skills-grid")!;
+  const searchEl = document.getElementById("skills-search") as HTMLInputElement;
+  const sortEl = document.getElementById("sort-select") as HTMLSelectElement;
+  const providerEl = document.getElementById("provider-select") as HTMLSelectElement;
+  const resultsBar = document.getElementById("results-bar")!;
+  const loadMoreWrap = document.getElementById("load-more-wrap") as HTMLElement;
+  const loadMoreBtn = document.getElementById("load-more-btn") as HTMLButtonElement;
+
+  let allItems: SkillItem[] = [];
+  let filtered: SkillItem[] = [];
+  let displayed = 0;
+  const PAGE_SIZE = 60;
+
+  // Restore query from URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const initialQuery = urlParams.get("q") ?? "";
+  if (initialQuery) searchEl.value = initialQuery;
+
+  // Keyboard shortcut
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "/" && document.activeElement?.tagName !== "INPUT") {
+      e.preventDefault();
+      searchEl.focus();
+    }
+    if (e.key === "Escape" && document.activeElement === searchEl) {
+      searchEl.blur();
+    }
+  });
+
+  function setLoading() {
+    grid.replaceChildren();
+    const p = document.createElement("p");
+    p.className = "state-loading";
+    p.textContent = "Loading skills...";
+    grid.appendChild(p);
+    resultsBar.textContent = "";
+    loadMoreWrap.style.display = "none";
+  }
+
+  function setError(msg: string) {
+    grid.replaceChildren();
+    const p = document.createElement("p");
+    p.className = "state-empty";
+    p.textContent = msg;
+    grid.appendChild(p);
+  }
+
+  function renderPage(reset: boolean) {
+    if (reset) {
+      grid.replaceChildren();
+      displayed = 0;
+    }
+
+    const page = filtered.slice(displayed, displayed + PAGE_SIZE);
+    if (page.length === 0 && displayed === 0) {
+      const p = document.createElement("p");
+      p.className = "state-empty";
+      p.textContent = "No skills match your filters.";
+      grid.appendChild(p);
+      loadMoreWrap.style.display = "none";
+      return;
+    }
+
+    page.forEach((s) => {
+      if (!tpl) return;
+      const card = buildCard(tpl, {
+        name: s.name,
+        description: s.description ?? "",
+        badges: [s.provider ?? "skills.sh"],
+        stat: s.downloads != null ? `${formatCount(s.downloads)} installs` : undefined,
+      });
+      grid.appendChild(card);
+    });
+
+    displayed += page.length;
+    resultsBar.textContent = `${filtered.length.toLocaleString()} skills${filtered.length < allItems.length ? ` (filtered from ${allItems.length.toLocaleString()})` : ""}`;
+    loadMoreWrap.style.display = displayed < filtered.length ? "flex" : "none";
+  }
+
+  function applyFilters() {
+    const q = searchEl.value.trim().toLowerCase();
+    const provider = providerEl.value;
+    const sort = sortEl.value;
+
+    filtered = allItems.filter((s) => {
+      if (q && !s.name.toLowerCase().includes(q) && !(s.description ?? "").toLowerCase().includes(q)) return false;
+      if (provider !== "all" && s.provider !== provider) return false;
+      return true;
+    });
+
+    if (sort === "installs") {
+      filtered.sort((a, b) => (b.downloads ?? 0) - (a.downloads ?? 0));
+    } else if (sort === "stars") {
+      filtered.sort((a, b) => (b.stars ?? 0) - (a.stars ?? 0));
+    } else if (sort === "name") {
+      filtered.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    // popularity: keep original order
+
+    renderPage(true);
+  }
+
+  loadMoreBtn.addEventListener("click", () => renderPage(false));
+  searchEl.addEventListener("input", applyFilters);
+  sortEl.addEventListener("change", applyFilters);
+  providerEl.addEventListener("change", applyFilters);
+
+  // Initial load
+  setLoading();
+  fetchSkills(initialQuery, 500).then(({ items }) => {
+    allItems = items;
+    applyFilters();
+  }).catch(() => setError("Could not load skills catalog."));
+</script>
+
+<style>
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+    padding: var(--space-sm) 0;
+    border-bottom: 1px solid var(--sig-border);
+    margin-bottom: var(--space-sm);
+  }
+
+  .toolbar-left {
+    flex: 1;
+    min-width: 200px;
+  }
+
+  .search-wrap {
+    position: relative;
+    max-width: 400px;
+  }
+
+  .search-wrap kbd {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+
+  .toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+  .filter-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--sig-text-muted);
+  }
+
+  .provider-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: var(--space-xs) 0 var(--space-sm);
+  }
+
+  .provider-link {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--sig-text-muted);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+
+  .provider-link:hover {
+    color: var(--sig-accent);
+  }
+
+  .provider-verified {
+    color: var(--sig-success);
+  }
+
+  .provider-div {
+    color: var(--sig-border-strong);
+    font-size: 10px;
+  }
+
+  .results-bar {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--sig-text-muted);
+    padding: var(--space-xs) 0 var(--space-sm);
+    min-height: 20px;
+  }
+
+  .load-more-wrap {
+    padding: var(--space-lg) 0;
+    justify-content: center;
+  }
+
+  .load-more-btn {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--sig-text-bright);
+    background: transparent;
+    border: 1px solid var(--sig-border-strong);
+    padding: 6px 24px;
+    transition: border-color 0.15s;
+  }
+
+  .load-more-btn:hover {
+    border-color: var(--sig-accent);
+  }
+</style>
