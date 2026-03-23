@@ -1,0 +1,36 @@
+name            = "signet-reviews"
+main            = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# D1 Database
+# After running `wrangler d1 create signet-reviews`, paste the database_id here.
+# ─────────────────────────────────────────────────────────────────────────────
+[[d1_databases]]
+binding      = "DB"
+database_name = "signet-reviews"
+database_id  = "REPLACE_WITH_D1_DATABASE_ID"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Rate Limiting  (5 sync submissions per IP per 60 seconds)
+# namespace_id can be any integer — it scopes the limiter to this Worker.
+# ─────────────────────────────────────────────────────────────────────────────
+[[unsafe.bindings]]
+name         = "RATE_LIMITER"
+type         = "ratelimit"
+namespace_id = "1001"
+simple       = { limit = 5, period = 60 }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Environment variables
+# CORS_ORIGIN: your marketplace domain (no trailing slash).
+# Example: "https://marketplace.signetai.sh"
+# For local dev leave it as "*".
+# ─────────────────────────────────────────────────────────────────────────────
+[vars]
+CORS_ORIGIN = "*"
+
+[env.production.vars]
+# Override in production — set to your exact marketplace domain.
+# e.g. CORS_ORIGIN = "https://marketplace.signetai.sh"
+CORS_ORIGIN = "REPLACE_WITH_MARKETPLACE_DOMAIN"

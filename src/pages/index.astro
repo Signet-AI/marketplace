@@ -102,10 +102,22 @@ import "../styles/global.css";
       <div class="state-loading">Loading servers...</div>
     </div>
   </section>
+
+  <!-- Recent Reviews -->
+  <section class="section">
+    <div class="section-header">
+      <h2 class="section-title">Recent Reviews</h2>
+      <span id="review-summary" class="review-summary-badge"></span>
+    </div>
+    <div id="recent-reviews" class="reviews-list">
+      <div class="state-loading">Loading reviews...</div>
+    </div>
+  </section>
 </Layout>
 
 <script>
   import { fetchSkills, fetchMcpServers, buildCard, formatCount } from "@/lib/catalog";
+  import { fetchReviews, buildReviewCard, renderStars } from "@/lib/reviews";
 
   const heroSearch = document.getElementById("hero-search") as HTMLInputElement | null;
 
@@ -185,6 +197,33 @@ import "../styles/global.css";
     p.className = "state-empty";
     p.textContent = "Could not load servers.";
     mcpEl.appendChild(p);
+  });
+
+  // Reviews
+  const reviewsEl = document.getElementById("recent-reviews")!;
+  const reviewSummaryEl = document.getElementById("review-summary")!;
+
+  fetchReviews({ limit: 5 }).then(({ reviews, summary }) => {
+    reviewsEl.replaceChildren();
+
+    if (summary.count > 0) {
+      reviewSummaryEl.textContent = `${renderStars(summary.avgRating)} ${summary.avgRating.toFixed(1)} · ${summary.count} review${summary.count === 1 ? "" : "s"}`;
+    }
+
+    if (reviews.length === 0) {
+      const p = document.createElement("p");
+      p.className = "state-empty";
+      p.textContent = "No reviews yet. Be the first to leave one via your Signet dashboard.";
+      reviewsEl.appendChild(p);
+      return;
+    }
+    reviews.forEach((r) => reviewsEl.appendChild(buildReviewCard(r)));
+  }).catch(() => {
+    reviewsEl.replaceChildren();
+    const p = document.createElement("p");
+    p.className = "state-empty";
+    p.textContent = "Reviews unavailable — is the Signet daemon running?";
+    reviewsEl.appendChild(p);
   });
 </script>
 
@@ -378,5 +417,115 @@ import "../styles/global.css";
 
   .section-more:hover {
     color: var(--sig-accent-hover);
+  }
+
+  /* Reviews */
+  .review-summary-badge {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--sig-accent);
+    letter-spacing: 0.04em;
+  }
+
+  .reviews-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+  }
+
+  .review-card {
+    padding: var(--space-md);
+    border: 1px solid var(--sig-border);
+    background: var(--sig-surface);
+    transition: border-color 0.15s;
+  }
+
+  .review-card:hover {
+    border-color: var(--sig-border-strong);
+  }
+
+  .review-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-bottom: 6px;
+  }
+
+  .review-stars {
+    font-size: 11px;
+    color: var(--sig-icon-bg-4);
+    letter-spacing: 1px;
+    flex-shrink: 0;
+  }
+
+  .review-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .review-name {
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--sig-text-bright);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .review-time {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--sig-text-muted);
+    white-space: nowrap;
+  }
+
+  .review-target-badge {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 1px 6px;
+    border: 1px solid var(--sig-border);
+    color: var(--sig-text-muted);
+    margin-bottom: 6px;
+  }
+
+  .review-target-skill {
+    border-color: var(--sig-icon-bg-2);
+    color: var(--sig-icon-bg-2);
+    opacity: 0.8;
+  }
+
+  .review-target-mcp {
+    border-color: var(--sig-icon-bg-1);
+    color: var(--sig-icon-bg-1);
+    opacity: 0.8;
+  }
+
+  .review-title {
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--sig-text-bright);
+    margin: 0 0 4px;
+  }
+
+  .review-body {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--sig-text-muted);
+    line-height: 1.6;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 </style>
